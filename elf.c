@@ -10,6 +10,8 @@
 #define PROGRAM_HEADER_AT(buf, index) \
     ((Elf64_program_header *) &buf[PROGRAM_HEADER_SIZE_64*index])
 
+static void debug_elf64_program_header(Elf64_program_header *pheader, char *output);
+  
 int parse_elf64(Elf64 *dest, char *buf, size_t size) 
 {
     if (size < FILE_HEADER_SIZE_64) {
