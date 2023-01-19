@@ -4,4 +4,4 @@ project(elfkit_ld)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(elfkit_ld main.c elf.c)
+add_executable(elfkit_ld main.c elf.c debug_msgs.c)
