@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include <errno.h>
 #include <sys/mman.h>
@@ -7,6 +6,8 @@
 
 #include "elf.h"
 #include "debug_msgs.h"
+
+#define BASE_LOAD_ADDRESS (uint64_t) 0x400000
 
 static inline int check_args(int argc, char const *argv[])
 {
@@ -25,6 +26,18 @@ static inline int get_file_size(FILE *fd)
 
     return size;
 }
+
+int map_p_flags_to_mprotect_flags(uint32_t p_flags) {
+    int mprotect_flags = 0;
+    if (p_flags & PF_X) mprotect_flags |= PROT_EXEC;
+    if (p_flags & PF_W) mprotect_flags |= PROT_WRITE;
+    if (p_flags & PF_R) mprotect_flags |= PROT_READ;
+    return mprotect_flags;
+}
+
+uint64_t align_low(uint64_t val) {
+    return val & (~0xFFF);
+} 
 
 int main(int argc, char const *argv[])
 {
@@ -57,40 +70,49 @@ int main(int argc, char const *argv[])
     };
     debug_elf64(file, stdout);
 
-    
+    char input;
+    printf("Press enter to continue ...\n");
+    scanf("%c", &input);
+    fflush(stdin);
 
-    Elf64_program_header *code_pheader = 
-        (Elf64_program_header *) malloc(sizeof(Elf64_program_header));
-    uint64_t entry_point = file->header->e_entry;
-    ret = find_pheader_with_addr_64(file, entry_point, code_pheader);
-    if (ret != 0) {
-        fprintf(stderr, "Segment with entry point not found: %d\n", ret);
-        return -1;
+    for (int i=0; i<file->header->e_phnum; i++) {
+        Elf64_program_header *pheader = PROGRAM_HEADER_AT(file->p_headers, i);
+        if (pheader->p_type == PT_LOAD && pheader->p_memsz != 0 ) {
+            printf("Load segment: %p\n", pheader->p_vaddr);
+            uint64_t aligned_vaddr = align_low(pheader->p_vaddr);
+            uint64_t padding = pheader->p_vaddr - aligned_vaddr;
+            uint64_t region_size = pheader->p_memsz + padding;
+            void *region = mmap(
+                (void *) (aligned_vaddr + BASE_LOAD_ADDRESS),
+                region_size,
+                PROT_WRITE,
+                MAP_ANONYMOUS | MAP_PRIVATE,
+                -1,
+                0
+            );
+            if (region == MAP_FAILED) {
+                fprintf(stderr, "Failed to mmap region #%d: %d", i, errno);
+                return -1;
+            }
+            void *segment_data = (void *) &data[pheader->p_offset];
+            memcpy((void *) (pheader->p_vaddr + BASE_LOAD_ADDRESS), segment_data, pheader->p_memsz);
+            ret = mprotect(
+                region,
+                region_size,
+                map_p_flags_to_mprotect_flags(pheader->p_flags)
+            );
+            if (ret != 0) {
+                fprintf(stderr, "mprotect failed: %d\n", errno);
+                return -1;
+            }
+        }
     }
-    void *code_region = (void *) &data[code_pheader->p_offset];
-    void *exec_region =  mmap(
-        NULL, 
-        code_pheader->p_filesz, 
-        PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS, 
-        -1, 
-        0
-    );
-    if (exec_region == MAP_FAILED) {
-        fprintf(stderr, "Failed to mmap exec region\n");
-        return -1;
-    }
-    memcpy(exec_region, code_region, code_pheader->p_filesz);
-    ret = mprotect(
-        exec_region,
-        0x1000,
-        PROT_READ | PROT_EXEC
-    );
-    if (ret != 0) {
-        fprintf(stderr, "mprotect failed: %d\n", errno);
-        return -1;
-    }
-    void (*code)(void) = exec_region;
+    printf("All segments loaded.\n");
+    printf("Press enter to continue ...\n");
+    scanf("%c", &input);
+
+    uint64_t entry_point = file->header->e_entry + BASE_LOAD_ADDRESS;    
+    void (*code)(void) = (void *) entry_point;
     code();
 
     fclose(fd);
