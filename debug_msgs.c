@@ -1,56 +1,5 @@
 #include "debug_msgs.h"
-
-const char* p_type_names[] = {
-    "NULL",
-    "LOAD",
-    "DYNAMIC",
-    "INTERP",
-    "NOTE",
-    "SHLIB",
-    "PHDR",
-    "TLS",
-    "NUM",
-    "LOOS",
-    "GNU_EH_FRAME",
-    "GNU_STACK",
-    "GNU_RELRO",
-    "GNU_PROPERY",
-    "LOSUNW",
-    "SUNWBSS",
-    "SUNWSTACK",
-    "HISUNW",
-    "HIOS",
-    "LOPROC",
-    "HIPROC",
-};
-const char* undefined = "UNDEFINED";
-
-const char *tab = "\x20\x20";
-const char *tab_2 = "\x20\x20\x20\x20";
-
-const char *p_type_get_name(const uint32_t p_type) {
-    if (p_type == PT_NULL) return p_type_names[0];
-    else if (p_type == PT_LOAD) return p_type_names[1];
-    else if (p_type == PT_DYNAMIC) return p_type_names[2]; 
-    else if (p_type == PT_INTERP) return p_type_names[3]; 
-    else if (p_type == PT_NOTE) return p_type_names[4]; 
-    else if (p_type == PT_SHLIB) return p_type_names[5]; 
-    else if (p_type == PT_PHDR) return p_type_names[6]; 
-    else if (p_type == PT_TLS) return p_type_names[7]; 
-    else if (p_type == PT_NUM) return p_type_names[8];
-    else if (p_type == PT_LOOS) return p_type_names[9]; 
-    else if (p_type == PT_GNU_EH_FRAME) return p_type_names[10]; 
-    else if (p_type == PT_GNU_STACK) return p_type_names[11]; 
-    else if (p_type == PT_GNU_RELRO) return p_type_names[12];
-    else if (p_type == PT_GNU_PROPERTY) return p_type_names[13]; 
-    else if (p_type == PT_LOSUNW) return p_type_names[14]; 
-    else if (p_type == PT_SUNWBSS) return p_type_names[15]; 
-    else if (p_type == PT_HISUNW) return p_type_names[16]; 
-    else if (p_type == PT_HIOS) return p_type_names[17]; 
-    else if (p_type == PT_LOPROC) return p_type_names[18]; 
-    else if (p_type == PT_HIPROC) return p_type_names[19]; 
-    else return undefined;
-}
+#include "debug_const.h"
 
 void debug_elf64(Elf64 *file, FILE *stream)
 {
@@ -59,16 +8,22 @@ void debug_elf64(Elf64 *file, FILE *stream)
         "entry_point: %016x\n",
         file->header->e_entry
     );
-    fprintf(stream, "program_headers: [\n");
-    for (int i=0; i<file->header->e_phnum; i++){
+    fprintf(stream, "Program_headers: [\n");
+    for (int i=0; i<file->header->e_phnum; i++) {
         Elf64_program_header *pheader = program_header_at(file, i);
         fprintf(stream, "%s{\n", tab);
         debug_elf64_program_header(
             pheader, 
             stream,
-            tab_2
+            tab_2 
         );
         fprintf(stream, "%s},\n", tab);
+    }
+    fprintf(stream, "]\n");
+    fprintf(stream, "Dynamic entries: [\n");
+    for (int i=0; i<file->d_table_num; i++) {
+        Elf64_dynamic *dyn = dynamic_at(file, i);
+        debug_elf64_dymanic(dyn, stream, tab_2);
     }
     fprintf(stream, "]\n");
 }
@@ -89,3 +44,9 @@ void debug_elf64_program_header(Elf64_program_header *pheader, FILE *stream,
     fprintf(stream, "%salign %016x\n", tabs, pheader->p_align);
 }
 
+void debug_elf64_dymanic(Elf64_dynamic *dyn, FILE *stream,
+    const char *tabs) 
+{
+    fprintf(stream, "%s- Dynamic { tag: %s, addr: %016x }\n", 
+        tabs, d_tag_get_name(dyn->d_tag), dyn->d_un.d_ptr);
+}

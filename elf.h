@@ -7,7 +7,7 @@
 
 typedef struct Elf64_header Elf64_header;
 typedef struct Elf64_program_header Elf64_program_header;
-typedef struct Elf64_Dynamic Elf64_Dynamic;
+typedef struct Elf64_dynamic Elf64_dynamic;
 typedef struct Elf64 Elf64;
 
 extern int elf64_errno;
@@ -96,10 +96,8 @@ struct Elf64_program_header {
 #define PT_GNU_STACK	0x6474e551	/* Indicates stack executability */
 #define PT_GNU_RELRO	0x6474e552	/* Read-only after relocation */
 #define PT_GNU_PROPERTY	0x6474e553	/* GNU property */
-#define PT_LOSUNW	0x6ffffffa
 #define PT_SUNWBSS	0x6ffffffa	/* Sun Specific segment */
 #define PT_SUNWSTACK	0x6ffffffb	/* Stack segment */
-#define PT_HISUNW	0x6fffffff
 #define PT_HIOS		0x6fffffff	/* End of OS-specific */
 #define PT_LOPROC	0x70000000	/* Start of processor-specific */
 #define PT_HIPROC	0x7fffffff	/* End of processor-specific */
@@ -110,7 +108,7 @@ struct Elf64_program_header {
 #define PF_W (1 << 1)
 #define PF_R (1 << 2)
 
-struct Elf64_Dynamic {
+struct Elf64_dynamic {
     uint64_t d_tag;
     union {
         uint64_t d_val;
@@ -151,7 +149,7 @@ struct Elf64_Dynamic {
 #define	DT_FINI_ARRAYSZ	28		/* Size in bytes of DT_FINI_ARRAY */
 #define DT_RUNPATH	29		/* Library search path */
 #define DT_FLAGS	30		/* Flags for the object being loaded */
-#define DT_ENCODING	32		/* Start of encoded range */
+#define DT_ENCODING	31		/* Start of encoded range */
 #define DT_PREINIT_ARRAY 32		/* Array with addresses of preinit fct*/
 #define DT_PREINIT_ARRAYSZ 33		/* size in bytes of DT_PREINIT_ARRAY */
 #define DT_SYMTAB_SHNDX	34		/* Address of SYMTAB_SHNDX section */
@@ -163,16 +161,16 @@ struct Elf64_Dynamic {
 #define DT_HIOS		0x6ffff000	/* End of OS-specific */
 #define DT_LOPROC	0x70000000	/* Start of processor-specific */
 #define DT_HIPROC	0x7fffffff	/* End of processor-specific */
-#define	DT_PROCNUM	DT_MIPS_NUM	/* Most used by any processor */
 
 struct Elf64 {
-    Elf64_header *header;
-    char         *p_headers;
-    char         *d_table;
-    uint64_t     d_table_size;
+    Elf64_header         *header;
+    Elf64_program_header *p_headers;
+    Elf64_dynamic        *d_table;
+    uint64_t              d_table_num;
 };
 
 Elf64 *parse_elf64(char *buf, size_t size);
 Elf64_program_header *program_header_at(Elf64 *file, uint64_t index);
+Elf64_dynamic *dynamic_at(Elf64 *file, uint64_t index);
 
 #endif
