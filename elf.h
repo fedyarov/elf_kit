@@ -5,20 +5,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define FILE_HEADER_SIZE_64    sizeof(Elf64_header)
-#define PROGRAM_HEADER_SIZE_64 sizeof(Elf64_program_header)
+typedef struct Elf64_header Elf64_header;
+typedef struct Elf64_program_header Elf64_program_header;
+typedef struct Elf64_Dynamic Elf64_Dynamic;
+typedef struct Elf64 Elf64;
 
-#define PROGRAM_HEADER_AT(buf, index) \
-    ((Elf64_program_header *) &buf[PROGRAM_HEADER_SIZE_64*index])
+extern int elf64_errno;
 
 typedef enum {
-    NOT_ELF = 1,
+    MALLOC_ERROR = 1,
+
+    NOT_ELF,
     CORRUPTED_FILE,
 
-    ADDR_NOT_FOUND_IN_PHEADERS,
+    INVALID_INDEX,
 } Elf_errors;
 
-typedef struct {
+struct Elf64_header {
     char     e_ident[16];
     uint16_t e_type;
     uint16_t e_machine;
@@ -33,7 +36,7 @@ typedef struct {
     uint16_t e_shentsize;
     uint16_t e_shnum;
     uint16_t e_shstrndx;
-} Elf64_header;
+};
 
 #define ELFMAG "\177ELF"
 
@@ -66,7 +69,7 @@ typedef struct {
 #define ET_LOPROC 0xff00
 #define ET_HIPROC 0xfff
 
-typedef struct {
+struct Elf64_program_header {
     uint32_t p_type;
     uint32_t p_flags;
     uint64_t p_offset;
@@ -75,7 +78,7 @@ typedef struct {
     uint64_t p_filesz;
     uint64_t p_memsz;
     uint64_t p_align;
-} Elf64_program_header;
+};
 
 /* Legal valued for p_type (segment type) */
 
@@ -107,14 +110,69 @@ typedef struct {
 #define PF_W (1 << 1)
 #define PF_R (1 << 2)
 
-typedef struct {
+struct Elf64_Dynamic {
+    uint64_t d_tag;
+    union {
+        uint64_t d_val;
+        uint64_t d_ptr;
+    } d_un;
+};
+
+/* Legal values for d_tag (dynamic entry type).  */
+
+#define DT_NULL		0		/* Marks end of dynamic section */
+#define DT_NEEDED	1		/* Name of needed library */
+#define DT_PLTRELSZ	2		/* Size in bytes of PLT relocs */
+#define DT_PLTGOT	3		/* Processor defined value */
+#define DT_HASH		4		/* Address of symbol hash table */
+#define DT_STRTAB	5		/* Address of string table */
+#define DT_SYMTAB	6		/* Address of symbol table */
+#define DT_RELA		7		/* Address of Rela relocs */
+#define DT_RELASZ	8		/* Total size of Rela relocs */
+#define DT_RELAENT	9		/* Size of one Rela reloc */
+#define DT_STRSZ	10		/* Size of string table */
+#define DT_SYMENT	11		/* Size of one symbol table entry */
+#define DT_INIT		12		/* Address of init function */
+#define DT_FINI		13		/* Address of termination function */
+#define DT_SONAME	14		/* Name of shared object */
+#define DT_RPATH	15		/* Library search path (deprecated) */
+#define DT_SYMBOLIC	16		/* Start symbol search here */
+#define DT_REL		17		/* Address of Rel relocs */
+#define DT_RELSZ	18		/* Total size of Rel relocs */
+#define DT_RELENT	19		/* Size of one Rel reloc */
+#define DT_PLTREL	20		/* Type of reloc in PLT */
+#define DT_DEBUG	21		/* For debugging; unspecified */
+#define DT_TEXTREL	22		/* Reloc might modify .text */
+#define DT_JMPREL	23		/* Address of PLT relocs */
+#define	DT_BIND_NOW	24		/* Process relocations of object */
+#define	DT_INIT_ARRAY	25		/* Array with addresses of init fct */
+#define	DT_FINI_ARRAY	26		/* Array with addresses of fini fct */
+#define	DT_INIT_ARRAYSZ	27		/* Size in bytes of DT_INIT_ARRAY */
+#define	DT_FINI_ARRAYSZ	28		/* Size in bytes of DT_FINI_ARRAY */
+#define DT_RUNPATH	29		/* Library search path */
+#define DT_FLAGS	30		/* Flags for the object being loaded */
+#define DT_ENCODING	32		/* Start of encoded range */
+#define DT_PREINIT_ARRAY 32		/* Array with addresses of preinit fct*/
+#define DT_PREINIT_ARRAYSZ 33		/* size in bytes of DT_PREINIT_ARRAY */
+#define DT_SYMTAB_SHNDX	34		/* Address of SYMTAB_SHNDX section */
+#define DT_RELRSZ	35		/* Total size of RELR relative relocations */
+#define DT_RELR		36		/* Address of RELR relative relocations */
+#define DT_RELRENT	37		/* Size of one RELR relative relocaction */
+#define	DT_NUM		38		/* Number used */
+#define DT_LOOS		0x6000000d	/* Start of OS-specific */
+#define DT_HIOS		0x6ffff000	/* End of OS-specific */
+#define DT_LOPROC	0x70000000	/* Start of processor-specific */
+#define DT_HIPROC	0x7fffffff	/* End of processor-specific */
+#define	DT_PROCNUM	DT_MIPS_NUM	/* Most used by any processor */
+
+struct Elf64 {
     Elf64_header *header;
     char         *p_headers;
-} Elf64;
+    char         *d_table;
+    uint64_t     d_table_size;
+};
 
-int parse_elf64(Elf64 *dest, char *buf, size_t size);
-
-int find_pheader_with_addr_64(Elf64 *file, uint64_t addr, 
-    Elf64_program_header *pheader);
+Elf64 *parse_elf64(char *buf, size_t size);
+Elf64_program_header *program_header_at(Elf64 *file, uint64_t index);
 
 #endif

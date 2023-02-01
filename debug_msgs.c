@@ -23,6 +23,7 @@ const char* p_type_names[] = {
     "LOPROC",
     "HIPROC",
 };
+const char* undefined = "UNDEFINED";
 
 const char *tab = "\x20\x20";
 const char *tab_2 = "\x20\x20\x20\x20";
@@ -48,6 +49,7 @@ const char *p_type_get_name(const uint32_t p_type) {
     else if (p_type == PT_HIOS) return p_type_names[17]; 
     else if (p_type == PT_LOPROC) return p_type_names[18]; 
     else if (p_type == PT_HIPROC) return p_type_names[19]; 
+    else return undefined;
 }
 
 void debug_elf64(Elf64 *file, FILE *stream)
@@ -59,9 +61,10 @@ void debug_elf64(Elf64 *file, FILE *stream)
     );
     fprintf(stream, "program_headers: [\n");
     for (int i=0; i<file->header->e_phnum; i++){
+        Elf64_program_header *pheader = program_header_at(file, i);
         fprintf(stream, "%s{\n", tab);
         debug_elf64_program_header(
-            PROGRAM_HEADER_AT(file->p_headers, i), 
+            pheader, 
             stream,
             tab_2
         );

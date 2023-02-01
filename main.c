@@ -58,14 +58,9 @@ int main(int argc, char const *argv[])
         fprintf(stderr, "Failed to read file");
         return -1;
     }
-    Elf64 *file = (Elf64*) malloc(sizeof(Elf64)); 
-    if (!file) {
-        fprintf(stderr, "Malloc error for Elf_header: ", errno);
-        return -1;
-    }
-    ret = parse_elf64(file, data, size);
-    if (ret != 0) {
-        fprintf(stderr, "Parse elf error: %d\n", ret);
+    Elf64 *file = parse_elf64(data, size);
+    if (file == NULL) {
+        fprintf(stderr, "Failed to parse Elf64: %d\n", elf64_errno);
         return -1;
     };
     debug_elf64(file, stdout);
@@ -76,7 +71,7 @@ int main(int argc, char const *argv[])
     fflush(stdin);
 
     for (int i=0; i<file->header->e_phnum; i++) {
-        Elf64_program_header *pheader = PROGRAM_HEADER_AT(file->p_headers, i);
+        Elf64_program_header *pheader = program_header_at(file, i);
         if (pheader->p_type == PT_LOAD && pheader->p_memsz != 0 ) {
             printf("Load segment: %p\n", pheader->p_vaddr);
             uint64_t aligned_vaddr = align_low(pheader->p_vaddr);
