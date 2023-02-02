@@ -58,7 +58,7 @@ int main(int argc, char const *argv[])
         fprintf(stderr, "Failed to read file");
         return -1;
     }
-    Elf64 *file = parse_elf64(data, size);
+    Elf64_header *file = parse_elf64_header(data, size);
     if (file == NULL) {
         fprintf(stderr, "Failed to parse Elf64: %d\n", elf64_errno);
         return -1;
@@ -70,7 +70,7 @@ int main(int argc, char const *argv[])
     scanf("%c", &input);
     fflush(stdin);
 
-    for (int i=0; i<file->header->e_phnum; i++) {
+    for (int i=0; i<file->e_phnum; i++) {
         Elf64_program_header *pheader = program_header_at(file, i);
         if (pheader->p_type == PT_LOAD && pheader->p_memsz != 0 ) {
             printf("Load segment: %p\n", pheader->p_vaddr);
@@ -106,7 +106,7 @@ int main(int argc, char const *argv[])
     printf("Press enter to continue ...\n");
     scanf("%c", &input);
 
-    uint64_t entry_point = file->header->e_entry + BASE_LOAD_ADDRESS;    
+    uint64_t entry_point = file->e_entry + BASE_LOAD_ADDRESS;    
     void (*code)(void) = (void *) entry_point;
     code();
 

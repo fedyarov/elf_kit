@@ -11,9 +11,9 @@
 
 int elf64_errno = 0;
   
-Elf64 *parse_elf64(char *buf, size_t size) 
+Elf64_header *parse_elf64_header(char *buf, size_t size) 
 {
-    Elf64 *file = (Elf64 *) malloc(sizeof(Elf64));
+    Elf64_header *file = (Elf64_header *) malloc(sizeof(Elf64_header));
     if (file == NULL) {
         elf64_errno = (Elf_errors) MALLOC_ERROR;        
         goto malloc_error;
@@ -22,35 +22,10 @@ Elf64 *parse_elf64(char *buf, size_t size)
         elf64_errno == (Elf_errors) NOT_ELF;
         goto not_elf;
     };
-    file->header = (Elf64_header *) buf;
-
-    uint64_t e_phoff = file->header->e_phoff;
-    size_t pheaders_size = PROGRAM_HEADER_SIZE_64 * file->header->e_phnum;
-    if (e_phoff + pheaders_size > size) {
-        elf64_errno = (Elf_errors) CORRUPTED_FILE;
-        goto corrupted_file;
-    }
-    file->p_headers = (Elf64_program_header *) &buf[e_phoff];
-    
-    for (int i=0; i<file->header->e_phnum; i++) {
-        Elf64_program_header *pheader = &file->p_headers[i];
-        if (pheader->p_type == PT_DYNAMIC) {
-            uint64_t dtable_off = pheader->p_offset;
-            uint64_t dtable_num = pheader->p_filesz / DYNAMIC_SIZE_64;
-            uint64_t dtable_size = dtable_num * DYNAMIC_SIZE_64;
-            if (dtable_off + dtable_size > size) {
-                elf64_errno = (Elf_errors) CORRUPTED_FILE;
-                goto corrupted_file;
-            }
-            uint64_t dtable_addr = (uint64_t) &buf[pheader->p_offset];
-            file->d_table = (Elf64_dynamic *) dtable_addr;
-            file->d_table_num = dtable_num;
-        }
-    }
+    // TODO: add validation of MAG and others
+    file = (Elf64_header *) buf;
 
     return file;
-
-corrupted_file:
 
 not_elf: 
     free(file);
@@ -60,20 +35,25 @@ malloc_error:
     return NULL;
 }
 
-Elf64_program_header *program_header_at(Elf64 *file, uint64_t index) 
+Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index) 
 {
-    if (index >= file->header->e_phnum) {
+    if (index >= file->e_phnum) {
         elf64_errno = (Elf_errors) INVALID_INDEX;
         return NULL;
     }
-    return &file->p_headers[index];
+    uint64_t pheaders_addr = (uint64_t) ((char *) file + file->e_phoff);
+    Elf64_program_header *pheaders = (Elf64_program_header *) pheaders_addr; 
+    return &pheaders[index];
 }
 
-Elf64_dynamic *dynamic_at(Elf64 *file, uint64_t index) 
+Elf64_dynamic *dynamic_at(Elf64_program_header *pheader, uint64_t index, Elf64_header *file) 
 {
-    if (index >= file->d_table_num) {
-        elf64_errno = (Elf_errors) INVALID_INDEX;
-        return NULL;
-    }
-    return &file->d_table[index];
+    uint64_t dtable_addr = (uint64_t) ((char *) file + pheader->p_offset);
+    Elf64_dynamic *d_table = (Elf64_dynamic *) dtable_addr;
+    return &d_table[index];
+}
+
+int dynamic_table_len(Elf64_program_header *pheader_dyn) 
+{
+    return pheader_dyn->p_filesz / DYNAMIC_SIZE_64;
 }

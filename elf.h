@@ -8,7 +8,9 @@
 typedef struct Elf64_header Elf64_header;
 typedef struct Elf64_program_header Elf64_program_header;
 typedef struct Elf64_dynamic Elf64_dynamic;
-typedef struct Elf64 Elf64;
+typedef struct Elf64_rela Elf64_rela;
+
+typedef uint64_t elf64_addr;
 
 extern int elf64_errno;
 
@@ -22,21 +24,26 @@ typedef enum {
 } Elf_errors;
 
 struct Elf64_header {
-    char     e_ident[16];
-    uint16_t e_type;
-    uint16_t e_machine;
-    uint32_t e_version;
-    uint64_t e_entry;
-    uint64_t e_phoff;
-    uint64_t e_shoff;
-    uint32_t e_flags;
-    uint16_t e_ehsize;
-    uint16_t e_phentsize;
-    uint16_t e_phnum;
-    uint16_t e_shentsize;
-    uint16_t e_shnum;
-    uint16_t e_shstrndx;
+    char       e_ident[16];
+    uint16_t   e_type;
+    uint16_t   e_machine;
+    uint32_t   e_version;
+    elf64_addr e_entry;
+    uint64_t   e_phoff;
+    uint64_t   e_shoff;
+    uint32_t   e_flags;
+    uint16_t   e_ehsize;
+    uint16_t   e_phentsize;
+    uint16_t   e_phnum;
+    uint16_t   e_shentsize;
+    uint16_t   e_shnum;
+    uint16_t   e_shstrndx;
 };
+
+Elf64_header *parse_elf64_header(char *buf, size_t size);
+Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index);
+Elf64_dynamic *dynamic_at(Elf64_program_header *pheader, uint64_t index, Elf64_header *file);
+int dynamic_table_len(Elf64_program_header *pheader_dyn) ;
 
 #define ELFMAG "\177ELF"
 
@@ -73,8 +80,8 @@ struct Elf64_program_header {
     uint32_t p_type;
     uint32_t p_flags;
     uint64_t p_offset;
-    uint64_t p_vaddr;
-    uint64_t p_paddr;
+    elf64_addr p_vaddr;
+    elf64_addr p_paddr;
     uint64_t p_filesz;
     uint64_t p_memsz;
     uint64_t p_align;
@@ -109,10 +116,10 @@ struct Elf64_program_header {
 #define PF_R (1 << 2)
 
 struct Elf64_dynamic {
-    uint64_t d_tag;
+    int64_t d_tag;
     union {
-        uint64_t d_val;
-        uint64_t d_ptr;
+        uint64_t   d_val;
+        elf64_addr d_ptr;
     } d_un;
 };
 
@@ -143,34 +150,47 @@ struct Elf64_dynamic {
 #define DT_TEXTREL	22		/* Reloc might modify .text */
 #define DT_JMPREL	23		/* Address of PLT relocs */
 #define	DT_BIND_NOW	24		/* Process relocations of object */
-#define	DT_INIT_ARRAY	25		/* Array with addresses of init fct */
-#define	DT_FINI_ARRAY	26		/* Array with addresses of fini fct */
-#define	DT_INIT_ARRAYSZ	27		/* Size in bytes of DT_INIT_ARRAY */
-#define	DT_FINI_ARRAYSZ	28		/* Size in bytes of DT_FINI_ARRAY */
+#define	DT_INIT_ARRAY	25  /* Array with addresses of init fct */
+#define	DT_FINI_ARRAY	26	/* Array with addresses of fini fct */
+#define	DT_INIT_ARRAYSZ	27	/* Size in bytes of DT_INIT_ARRAY */
+#define	DT_FINI_ARRAYSZ	28	/* Size in bytes of DT_FINI_ARRAY */
 #define DT_RUNPATH	29		/* Library search path */
 #define DT_FLAGS	30		/* Flags for the object being loaded */
 #define DT_ENCODING	31		/* Start of encoded range */
-#define DT_PREINIT_ARRAY 32		/* Array with addresses of preinit fct*/
-#define DT_PREINIT_ARRAYSZ 33		/* size in bytes of DT_PREINIT_ARRAY */
+#define DT_PREINIT_ARRAY 32	    /* Array with addresses of preinit fct*/
+#define DT_PREINIT_ARRAYSZ 33	/* size in bytes of DT_PREINIT_ARRAY */
 #define DT_SYMTAB_SHNDX	34		/* Address of SYMTAB_SHNDX section */
-#define DT_RELRSZ	35		/* Total size of RELR relative relocations */
-#define DT_RELR		36		/* Address of RELR relative relocations */
-#define DT_RELRENT	37		/* Size of one RELR relative relocaction */
-#define	DT_NUM		38		/* Number used */
+#define DT_RELRSZ	35		    /* Total size of RELR relative relocations */
+#define DT_RELR		36		    /* Address of RELR relative relocations */
+#define DT_RELRENT	37		    /* Size of one RELR relative relocaction */
+#define	DT_NUM		38		    /* Number used */
 #define DT_LOOS		0x6000000d	/* Start of OS-specific */
 #define DT_HIOS		0x6ffff000	/* End of OS-specific */
 #define DT_LOPROC	0x70000000	/* Start of processor-specific */
 #define DT_HIPROC	0x7fffffff	/* End of processor-specific */
+#define DT_GNU_HASH	0x6ffffef5	/* GNU-style hash table.  */
+#define DT_RELACOUNT 0x6ffffff9
+#define DT_FLAGS_1	0x6ffffffb	/* State flags, see DF_1_* below.  */
 
-struct Elf64 {
-    Elf64_header         *header;
-    Elf64_program_header *p_headers;
-    Elf64_dynamic        *d_table;
-    uint64_t              d_table_num;
+struct Elf64_rela {
+    elf64_addr r_offset;
+    uint64_t   r_info;
+    int64_t    r_addend;
 };
 
-Elf64 *parse_elf64(char *buf, size_t size);
-Elf64_program_header *program_header_at(Elf64 *file, uint64_t index);
-Elf64_dynamic *dynamic_at(Elf64 *file, uint64_t index);
+#define ELF64_R_SYM(i) ((i) >> 32)
+#define ELF64_R_TYPE(i) ((i) & 0xffffffffL)
+#define ELF64_R_INFO(s, t) (((s) << 32) + ((t) & 0xffffffffL)) 
+
+// struct Elf64 {
+//     Elf64_header         *header;
+//     Elf64_program_header *p_headers;
+//     Elf64_dynamic        *d_table;
+//     uint64_t              d_table_num;
+// };
+
+// Elf64 *parse_elf64(char *buf, size_t size);
+// Elf64_program_header *program_header_at(Elf64 *file, uint64_t index);
+// Elf64_dynamic *dynamic_at(Elf64 *file, uint64_t index);
 
 #endif

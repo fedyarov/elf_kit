@@ -71,11 +71,16 @@ const char *d_tag_get_name(const uint32_t d_tag) {
         case DT_HIOS: return "HIOS";
         case DT_LOPROC: return "LOPROC";
         case DT_HIPROC: return "HIPROC";
+        case DT_GNU_HASH: return "GNU_HASH";
+        case DT_RELACOUNT: return "RELACOUNT";
+        case DT_FLAGS_1: return "FLAGS_1";
         default: return undefined;
     }
 }
 
-const char *tab = "\x20\x20";
+const char *tab_0 = "";
+const char *tab_1 = "\x20\x20";
 const char *tab_2 = "\x20\x20\x20\x20";
+const char *tab_3 = "\x20\x20\x20\x20\x20\x20";
 
 #endif
