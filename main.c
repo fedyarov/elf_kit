@@ -2,12 +2,26 @@
 
 #include <errno.h>
 #include <sys/mman.h>
+#include <sys/queue.h>
 #include <string.h>
+#include <search.h>
 
-#include "elf.h"
 #include "debug_msgs.h"
+#include "elf.h"
+#include "x86-64.h"
 
 #define BASE_LOAD_ADDRESS (uint64_t) 0x400000
+
+struct Loaded_segment {
+    uint64_t aligned_vaddr;
+    uint64_t padding;
+    void     *region;
+    uint64_t size;
+    Elf64_program_header *pheader;
+    SLIST_ENTRY(Loaded_segment) entry;
+};
+
+SLIST_HEAD(Loaded_segments_list, Loaded_segment);
 
 static inline int check_args(int argc, char const *argv[])
 {
@@ -70,8 +84,14 @@ int main(int argc, char const *argv[])
     scanf("%c", &input);
     fflush(stdin);
 
+    Elf64_program_header *pheaders = program_header_at(file, 0);
+    struct Loaded_segments_list loaded_segments;
+    SLIST_INIT(&loaded_segments);
+    Elf64_dynamic *dtable = NULL;
+    Elf64_rela *rela_table = NULL;
+    uint64_t rela_count = 0;
     for (int i=0; i<file->e_phnum; i++) {
-        Elf64_program_header *pheader = program_header_at(file, i);
+        Elf64_program_header *pheader = &pheaders[i];
         if (pheader->p_type == PT_LOAD && pheader->p_memsz != 0 ) {
             printf("Load segment: %p\n", pheader->p_vaddr);
             uint64_t aligned_vaddr = align_low(pheader->p_vaddr);
@@ -91,20 +111,54 @@ int main(int argc, char const *argv[])
             }
             void *segment_data = (void *) &data[pheader->p_offset];
             memcpy((void *) (pheader->p_vaddr + BASE_LOAD_ADDRESS), segment_data, pheader->p_memsz);
-            ret = mprotect(
-                region,
-                region_size,
-                map_p_flags_to_mprotect_flags(pheader->p_flags)
-            );
-            if (ret != 0) {
-                fprintf(stderr, "mprotect failed: %d\n", errno);
-                return -1;
+            struct Loaded_segment *loaded_segment = (struct Loaded_segment *) malloc(sizeof(struct Loaded_segment));
+            loaded_segment->aligned_vaddr = aligned_vaddr;
+            loaded_segment->padding = padding;
+            loaded_segment->region = region;
+            loaded_segment->size = region_size;
+            loaded_segment->pheader = pheader;
+            SLIST_INSERT_HEAD(&loaded_segments, loaded_segment, entry);
+        }
+        else if (pheader->p_type == PT_DYNAMIC) {
+            dtable = dynamic_at(pheader, 0, (char *) BASE_LOAD_ADDRESS);
+            for (int dyn_num=0; dyn_num<dynamic_table_len(pheader); dyn_num++) {
+                Elf64_dynamic *dyn = &dtable[dyn_num];
+                if (dyn->d_tag == DT_RELA) {
+                    rela_table = rela_at(dyn, 0, (char *) BASE_LOAD_ADDRESS);
+                }
+                else if (dyn->d_tag == DT_RELACOUNT) {
+                    rela_count = dyn->d_un.d_val;
+                }
             }
         }
     }
     printf("All segments loaded.\n");
     printf("Press enter to continue ...\n");
     scanf("%c", &input);
+    fflush(stdin);
+
+    for (int i=0; i<rela_count; i++) {
+        // TODO: add checks for processor arch
+        Elf64_rela *rela = &rela_table[i];
+        ret = apply_relocation_x86_64(rela, (char *) BASE_LOAD_ADDRESS);
+        if (ret != 0) {
+            fprintf(stderr, "failed to apply relocation: %d\n", ret);
+            return -1;
+        }
+    }
+
+    struct Loaded_segment* temp_loaded_segment = NULL;
+    SLIST_FOREACH(temp_loaded_segment, &loaded_segments, entry) {
+        ret = mprotect(
+            temp_loaded_segment->region,
+            temp_loaded_segment->size,
+            map_p_flags_to_mprotect_flags(temp_loaded_segment->pheader->p_flags)
+        );
+        if (ret != 0) {
+            fprintf(stderr, "mprotect failed: %d\n", errno);
+            return -1;
+        }
+    }
 
     uint64_t entry_point = file->e_entry + BASE_LOAD_ADDRESS;    
     void (*code)(void) = (void *) entry_point;

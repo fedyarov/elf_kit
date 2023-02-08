@@ -21,6 +21,9 @@ typedef enum {
     CORRUPTED_FILE,
 
     INVALID_INDEX,
+
+    NOT_DYNAMIC,
+    NOT_RELA,
 } Elf_errors;
 
 struct Elf64_header {
@@ -42,8 +45,27 @@ struct Elf64_header {
 
 Elf64_header *parse_elf64_header(char *buf, size_t size);
 Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index);
-Elf64_dynamic *dynamic_at(Elf64_program_header *pheader, uint64_t index, Elf64_header *file);
-int dynamic_table_len(Elf64_program_header *pheader_dyn) ;
+/**
+ * @brief get Elf64_dynamic at position index
+ * 
+ * @param pheader_dyn 
+ * @param index num of ELf64_dynamic at dynamic table
+ * @param mem abstract pointer to region when data is mapped at moment of call. 
+ * It can be pointer to the all elf file that just readed to the linker buffer 
+ * or it can be pointer to the already mapped segment.
+ */
+Elf64_dynamic *dynamic_at(Elf64_program_header *pheader_dyn, uint64_t index, char *mem);
+int dynamic_table_len(Elf64_program_header *pheader_dyn);
+/**
+ * @brief get Elf64_rela at position index
+ * 
+ * @param pheader_dyn 
+ * @param index num of Elf64_rela at relocations table
+ * @param mem abstract pointer to region when data is mapped at moment of call. 
+ * It can be pointer to the all elf file that just readed to the linker buffer 
+ * or it can be pointer to the already mapped segment.
+ */
+Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem);
 
 #define ELFMAG "\177ELF"
 
@@ -180,17 +202,6 @@ struct Elf64_rela {
 
 #define ELF64_R_SYM(i) ((i) >> 32)
 #define ELF64_R_TYPE(i) ((i) & 0xffffffffL)
-#define ELF64_R_INFO(s, t) (((s) << 32) + ((t) & 0xffffffffL)) 
-
-// struct Elf64 {
-//     Elf64_header         *header;
-//     Elf64_program_header *p_headers;
-//     Elf64_dynamic        *d_table;
-//     uint64_t              d_table_num;
-// };
-
-// Elf64 *parse_elf64(char *buf, size_t size);
-// Elf64_program_header *program_header_at(Elf64 *file, uint64_t index);
-// Elf64_dynamic *dynamic_at(Elf64 *file, uint64_t index);
+#define ELF64_R_INFO(s, t) (((s) << 32) + ((t) & 0xffffffffL))
 
 #endif

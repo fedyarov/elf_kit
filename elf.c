@@ -46,14 +46,33 @@ Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index)
     return &pheaders[index];
 }
 
-Elf64_dynamic *dynamic_at(Elf64_program_header *pheader, uint64_t index, Elf64_header *file) 
+Elf64_dynamic *dynamic_at(Elf64_program_header *pheader_dyn, uint64_t index, char *mem) 
 {
-    uint64_t dtable_addr = (uint64_t) ((char *) file + pheader->p_offset);
+    if (pheader_dyn->p_type != PT_DYNAMIC) {
+        elf64_errno = (Elf_errors) NOT_DYNAMIC;
+        return NULL;
+    }
+    uint64_t dtable_addr = (uint64_t) (mem + pheader_dyn->p_offset);
     Elf64_dynamic *d_table = (Elf64_dynamic *) dtable_addr;
     return &d_table[index];
 }
 
 int dynamic_table_len(Elf64_program_header *pheader_dyn) 
 {
+    if (pheader_dyn->p_type != PT_DYNAMIC) {
+        elf64_errno = (Elf_errors) NOT_DYNAMIC;
+        return -1;
+    }
     return pheader_dyn->p_filesz / DYNAMIC_SIZE_64;
+}
+
+Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem)
+{
+    if (dyn->d_tag != DT_RELA) {
+        elf64_errno = (Elf_errors) NOT_RELA;
+        return NULL;
+    }
+    uint64_t rela_table_addr = (uint64_t) (mem + dyn->d_un.d_ptr);
+    Elf64_rela *rela_table = (Elf64_rela *) rela_table_addr;
+    return &rela_table[index];
 }
