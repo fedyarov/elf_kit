@@ -1,7 +1,7 @@
 #include "debug_msgs.h"
 #include "debug_const.h"
 
-void debug_elf64(Elf64_header *file, FILE *stream)
+void debug_elf64(const Elf64_header *file, FILE *stream)
 {
     fprintf(
         stream,
@@ -37,7 +37,7 @@ void debug_elf64(Elf64_header *file, FILE *stream)
     }
 }
 
-void debug_elf64_program_header(Elf64_program_header *pheader, FILE *stream,
+void debug_elf64_program_header(const Elf64_program_header *pheader, FILE *stream,
     const char *tabs)
 {
     char p_flags[4] = "...\0";
@@ -55,14 +55,14 @@ void debug_elf64_program_header(Elf64_program_header *pheader, FILE *stream,
     fprintf(stream, "\n");
 }
 
-void debug_elf64_dymanic(Elf64_dynamic *dyn, FILE *stream,
+void debug_elf64_dymanic(const Elf64_dynamic *dyn, FILE *stream,
     const char *tabs) 
 {
     fprintf(stream, "%s- Dynamic { tag: %s, un: %016x }\n", 
         tabs, d_tag_get_name(dyn->d_tag), dyn->d_un.d_ptr);
 }
 
-void debug_elf64_rela(Elf64_rela *rela, FILE *stream,
+void debug_elf64_rela(const Elf64_rela *rela, FILE *stream,
     const char *tabs) 
 {
     fprintf(stream, "%s- Rela\n", tabs);
@@ -70,4 +70,16 @@ void debug_elf64_rela(Elf64_rela *rela, FILE *stream,
     fprintf(stream, "%s%ssym    %08x\n", tabs, tab_1, ELF64_R_SYM(rela->r_info));
     fprintf(stream, "%s%stype   %08x\n", tabs, tab_1, ELF64_R_TYPE(rela->r_info));
     fprintf(stream, "%s%saddend %016x\n", tabs, tab_1, rela->r_addend);
-}    
+}
+
+void debug_elf64_sym(Elf64_sym *sym, FILE *stream,
+    const char *tabs)
+{
+    fprintf(stream, "%s- Sym\n", tabs);
+    fprintf(stream, "%s%sname  %08x\n", tabs, tab_1, sym->st_name);
+    fprintf(stream, "%s%sinfo  %02x\n", tabs, tab_1, sym->st_info);
+    fprintf(stream, "%s%sother %02x\n", tabs, tab_1, sym->st_other);
+    fprintf(stream, "%s%sshndx %04x\n", tabs, tab_1, sym->st_shndx);
+    fprintf(stream, "%s%svalue %016x\n", tabs, tab_1, sym->st_value);
+    fprintf(stream, "%s%ssize  %016x\n", tabs, tab_1, sym->st_size);
+}

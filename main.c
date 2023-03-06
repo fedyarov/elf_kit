@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 #include <errno.h>
 #include <sys/mman.h>
@@ -89,6 +91,7 @@ int main(int argc, char const *argv[])
     SLIST_INIT(&loaded_segments);
     Elf64_dynamic *dtable = NULL;
     Elf64_rela *rela_table = NULL;
+    Elf64_sym *sym_table = NULL;
     uint64_t rela_count = 0;
     for (int i=0; i<file->e_phnum; i++) {
         Elf64_program_header *pheader = &pheaders[i];
@@ -121,13 +124,21 @@ int main(int argc, char const *argv[])
         }
         else if (pheader->p_type == PT_DYNAMIC) {
             dtable = dynamic_at(pheader, 0, (char *) BASE_LOAD_ADDRESS);
+            uint64_t rela_sz = 0;
+            uint64_t rela_ent = 18;
             for (int dyn_num=0; dyn_num<dynamic_table_len(pheader); dyn_num++) {
                 Elf64_dynamic *dyn = &dtable[dyn_num];
                 if (dyn->d_tag == DT_RELA) {
                     rela_table = rela_at(dyn, 0, (char *) BASE_LOAD_ADDRESS);
                 }
-                else if (dyn->d_tag == DT_RELACOUNT) {
-                    rela_count = dyn->d_un.d_val;
+                else if (dyn->d_tag == DT_RELASZ) {
+                    rela_count = dyn->d_un.d_val / rela_ent;
+                }
+                else if (dyn->d_tag == DT_SYMTAB) {
+                    sym_table = sym_at(dyn, 2, (char *) BASE_LOAD_ADDRESS);
+                }
+                else {
+                    fprintf(stderr, "Unimplemented d_tab: %0x\n", dyn->d_tag);
                 }
             }
         }
@@ -142,7 +153,7 @@ int main(int argc, char const *argv[])
         Elf64_rela *rela = &rela_table[i];
         ret = apply_relocation_x86_64(rela, (char *) BASE_LOAD_ADDRESS);
         if (ret != 0) {
-            fprintf(stderr, "failed to apply relocation: %d\n", ret);
+            fprintf(stderr, "failed to apply relocation: d_tag: %d, err: %d\n", ELF64_R_TYPE(rela->r_info), ret);
             return -1;
         }
     }

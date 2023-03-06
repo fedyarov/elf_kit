@@ -5,10 +5,6 @@
 #define PROGRAM_HEADER_SIZE_64 sizeof(Elf64_program_header)
 #define DYNAMIC_SIZE_64        sizeof(Elf64_dynamic)
 
-#define PROGRAM_HEADER_DEBUG_PATTERN \
-    "file 0807060504030201..0807060504030201 | mem 0807060504030201..0807060504030201 | align 0807060504030201 | RWX\n"
-#define PROGRAM_HEADER_DEBUG_LEN_64 sizeof(PROGRAM_HEADER_DEBUG_PATTERN)
-
 int elf64_errno = 0;
   
 Elf64_header *parse_elf64_header(char *buf, size_t size) 
@@ -35,7 +31,7 @@ malloc_error:
     return NULL;
 }
 
-Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index) 
+Elf64_program_header *program_header_at(const Elf64_header *file, uint64_t index) 
 {
     if (index >= file->e_phnum) {
         elf64_errno = (Elf_errors) INVALID_INDEX;
@@ -46,7 +42,18 @@ Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index)
     return &pheaders[index];
 }
 
-Elf64_dynamic *dynamic_at(Elf64_program_header *pheader_dyn, uint64_t index, char *mem) 
+Elf64_section_header *section_header_at(const Elf64_header *file, uint64_t index)
+{
+    if (index >= file->e_shnum) {
+        elf64_errno = (Elf_errors) INVALID_INDEX;
+        return NULL;
+    }
+    uint64_t sheaders_addr = (uint64_t) ((char *) file + file->e_shoff);
+    Elf64_section_header *sheaders = (Elf64_section_header *) sheaders_addr;
+    return &sheaders[index];
+}
+
+Elf64_dynamic *dynamic_at(const Elf64_program_header *pheader_dyn, uint64_t index, char *mem) 
 {
     if (pheader_dyn->p_type != PT_DYNAMIC) {
         elf64_errno = (Elf_errors) NOT_DYNAMIC;
@@ -57,7 +64,7 @@ Elf64_dynamic *dynamic_at(Elf64_program_header *pheader_dyn, uint64_t index, cha
     return &d_table[index];
 }
 
-int dynamic_table_len(Elf64_program_header *pheader_dyn) 
+int dynamic_table_len(const Elf64_program_header *pheader_dyn) 
 {
     if (pheader_dyn->p_type != PT_DYNAMIC) {
         elf64_errno = (Elf_errors) NOT_DYNAMIC;
@@ -66,7 +73,7 @@ int dynamic_table_len(Elf64_program_header *pheader_dyn)
     return pheader_dyn->p_filesz / DYNAMIC_SIZE_64;
 }
 
-Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem)
+Elf64_rela *rela_at(const Elf64_dynamic *dyn, uint64_t index, char *mem)
 {
     if (dyn->d_tag != DT_RELA) {
         elf64_errno = (Elf_errors) NOT_RELA;
@@ -75,4 +82,15 @@ Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem)
     uint64_t rela_table_addr = (uint64_t) (mem + dyn->d_un.d_ptr);
     Elf64_rela *rela_table = (Elf64_rela *) rela_table_addr;
     return &rela_table[index];
+}
+
+Elf64_sym *sym_at(const Elf64_dynamic *dyn, uint64_t index, char *mem)
+{
+    if (dyn->d_tag != DT_SYMTAB) {
+        elf64_errno = (Elf_errors) NOT_SYM;
+        return NULL;
+    }
+    uint64_t symtab_addr = (uint64_t) (mem + dyn->d_un.d_ptr);
+    Elf64_sym *symtab = (Elf64_sym *) symtab_addr;
+    return &symtab[index];
 }

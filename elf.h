@@ -7,8 +7,10 @@
 
 typedef struct Elf64_header Elf64_header;
 typedef struct Elf64_program_header Elf64_program_header;
+typedef struct Elf64_section_header Elf64_section_header;
 typedef struct Elf64_dynamic Elf64_dynamic;
 typedef struct Elf64_rela Elf64_rela;
+typedef struct Elf64_sym Elf64_sym;
 
 typedef uint64_t elf64_addr;
 
@@ -24,6 +26,7 @@ typedef enum {
 
     NOT_DYNAMIC,
     NOT_RELA,
+    NOT_SYM,
 } Elf_errors;
 
 struct Elf64_header {
@@ -44,7 +47,8 @@ struct Elf64_header {
 };
 
 Elf64_header *parse_elf64_header(char *buf, size_t size);
-Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index);
+Elf64_program_header *program_header_at(const Elf64_header *file, uint64_t index);
+Elf64_section_header *section_header_at(const Elf64_header *file, uint64_t index);
 /**
  * @brief get Elf64_dynamic at position index
  * 
@@ -54,8 +58,8 @@ Elf64_program_header *program_header_at(Elf64_header *file, uint64_t index);
  * It can be pointer to the all elf file that just readed to the linker buffer 
  * or it can be pointer to the already mapped segment.
  */
-Elf64_dynamic *dynamic_at(Elf64_program_header *pheader_dyn, uint64_t index, char *mem);
-int dynamic_table_len(Elf64_program_header *pheader_dyn);
+Elf64_dynamic *dynamic_at(const Elf64_program_header *pheader_dyn, uint64_t index, char *mem);
+int dynamic_table_len(const Elf64_program_header *pheader_dyn);
 /**
  * @brief get Elf64_rela at position index
  * 
@@ -65,28 +69,19 @@ int dynamic_table_len(Elf64_program_header *pheader_dyn);
  * It can be pointer to the all elf file that just readed to the linker buffer 
  * or it can be pointer to the already mapped segment.
  */
-Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem);
+Elf64_rela *rela_at(const Elf64_dynamic *dyn, uint64_t index, char *mem);
+/**
+ * @brief get Elf64_sym at position index
+ * 
+ * @param pheader_dyn 
+ * @param index num of Elf64_rela at relocations table
+ * @param mem abstract pointer to region when data is mapped at moment of call. 
+ * It can be pointer to the all elf file that just readed to the linker buffer 
+ * or it can be pointer to the already mapped segment.
+ */
+Elf64_sym *sym_at(const Elf64_dynamic *dyn, uint64_t index, char *mem);
 
 #define ELFMAG "\177ELF"
-
-#define EI_CLASS    4 // EI_CLASS byte number
-#define EI_CLASS_32 1 
-#define EI_CLASS_64 2
-
-#define EI_DATA    5
-#define EI_DATA_LE 1
-#define EI_DATA_BE 2 
-
-#define EI_VERSION 6
-
-#define EI_OSABI 7
-/*
-
-*/
-
-#define EI_ABIVERSION 8
-
-#define EI_PAD 9 
 
 #define ET_NONE   0
 #define ET_REL    1
@@ -99,14 +94,14 @@ Elf64_rela *rela_at(Elf64_dynamic *dyn, uint64_t index, char *mem);
 #define ET_HIPROC 0xfff
 
 struct Elf64_program_header {
-    uint32_t p_type;
-    uint32_t p_flags;
-    uint64_t p_offset;
+    uint32_t   p_type;
+    uint32_t   p_flags;
+    uint64_t   p_offset;
     elf64_addr p_vaddr;
     elf64_addr p_paddr;
-    uint64_t p_filesz;
-    uint64_t p_memsz;
-    uint64_t p_align;
+    uint64_t   p_filesz;
+    uint64_t   p_memsz;
+    uint64_t   p_align;
 };
 
 /* Legal valued for p_type (segment type) */
@@ -136,6 +131,19 @@ struct Elf64_program_header {
 #define PF_X (1 << 0)
 #define PF_W (1 << 1)
 #define PF_R (1 << 2)
+
+struct Elf64_section_header {
+    uint32_t   sh_name;
+    uint32_t   sh_type;
+    uint64_t   sh_flags;
+    elf64_addr sh_addr;
+    uint64_t   sh_offset;
+    uint64_t   sh_size;
+    uint32_t   sh_link;
+    uint32_t   sh_info;
+    uint64_t   sh_addralign;
+    uint64_t   sh_entsize;
+};
 
 struct Elf64_dynamic {
     int64_t d_tag;
@@ -184,7 +192,7 @@ struct Elf64_dynamic {
 #define DT_SYMTAB_SHNDX	34		/* Address of SYMTAB_SHNDX section */
 #define DT_RELRSZ	35		    /* Total size of RELR relative relocations */
 #define DT_RELR		36		    /* Address of RELR relative relocations */
-#define DT_RELRENT	37		    /* Size of one RELR relative relocaction */
+#define DT_RELRENT	37		    /* Size of one RELR relative relocation */
 #define	DT_NUM		38		    /* Number used */
 #define DT_LOOS		0x6000000d	/* Start of OS-specific */
 #define DT_HIOS		0x6ffff000	/* End of OS-specific */
@@ -203,5 +211,14 @@ struct Elf64_rela {
 #define ELF64_R_SYM(i) ((i) >> 32)
 #define ELF64_R_TYPE(i) ((i) & 0xffffffffL)
 #define ELF64_R_INFO(s, t) (((s) << 32) + ((t) & 0xffffffffL))
+
+struct Elf64_sym {
+    uint32_t   st_name;
+    char       st_info;
+    char       st_other;
+    uint16_t   st_shndx;
+    elf64_addr st_value;
+    uint64_t   st_size;
+};
 
 #endif
